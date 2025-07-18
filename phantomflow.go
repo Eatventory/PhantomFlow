@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"net/http"
@@ -77,7 +78,7 @@ type Event struct {
 var (
 	successCount uint64
 	failCount    uint64
-	sbPool = sync.Pool{
+	sbPool       = sync.Pool{
 		New: func() interface{} {
 			return &strings.Builder{}
 		},
@@ -235,20 +236,25 @@ func main() {
 		duration int
 		workers  int
 	)
-	flag.IntVar(&totalReq, "n", 0, "총 요청 수 (0이면 duration 기반)")
-	flag.IntVar(&duration, "d", 0, "지속 시간(초, 0이면 total-requests 기반)")
-	flag.IntVar(&workers, "c", runtime.NumCPU()*2, "동시 워커 수 (기본: CPU*2)")
+	flag.IntVar(&totalReq, "n", 0, "Total number of requests (0 for duration-based)")
+	flag.IntVar(&duration, "d", 0, "Duration in seconds (0 for request-based)")
+	flag.IntVar(&workers, "c", runtime.NumCPU()*2, "Number of concurrent workers (default: CPU cores * 2)")
 	flag.Parse()
 	if flag.NArg() < 1 {
-		fmt.Println("사용법: phantomflow [ENDPOINT] [-n 총요청수] [-d 지속시간(초)] [-c 동시워커수]")
+		fmt.Println("Usage: phantomflow [ENDPOINT] [-n total_requests] [-d duration_seconds] [-c concurrent_workers]")
 		os.Exit(1)
 	}
 	endpoint = flag.Arg(0)
 	fmt.Printf("Target: %s\nWorkers: %d\n", endpoint, workers)
 	if totalReq > 0 {
-		fmt.Printf("총 요청: %d\n", totalReq)
+		fmt.Printf("Total Requests: %d\n", totalReq)
 	} else {
-		fmt.Printf("지속 시간: %d초\n", duration)
+		fmt.Printf("Duration: %d seconds\n", duration)
+	}
+
+	kst, err := time.LoadLocation("Asia/Seoul")
+	if err != nil {
+		log.Fatalf("Could not load KST location: %v", err)
 	}
 
 	done := make(chan struct{})
@@ -268,7 +274,7 @@ func main() {
 					continue
 				}
 				rps := float64((s+f)-(lastSuccess+lastFail)) / dt
-				fmt.Printf("[진행] 성공: %d, 실패: %d, RPS: %.2f\n", s, f, rps)
+				fmt.Printf("%s [Progress] Success: %d, Fail: %d, RPS: %.2f\n", now.In(kst).Format("2006-01-02 15:04:05"), s, f, rps)
 				lastSuccess, lastFail = s, f
 				lastTime = now
 			}
@@ -306,8 +312,8 @@ func main() {
 
 	elapsed := time.Since(start).Seconds()
 	total := atomic.LoadUint64(&successCount) + atomic.LoadUint64(&failCount)
-	fmt.Printf("\n총 요청: %d, 성공: %d, 실패: %d\n", total, successCount, failCount)
+	fmt.Printf("\nTotal: %d, Success: %d, Fail: %d\n", total, successCount, failCount)
 	if elapsed > 0 {
-		fmt.Printf("평균 RPS: %.2f\n", float64(total)/elapsed)
+		fmt.Printf("Average RPS: %.2f\n", float64(total)/elapsed)
 	}
 }
