@@ -1,4 +1,3 @@
-// phantomflow.go (Optimized Version)
 package main
 
 import (
@@ -9,7 +8,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
-	_ "net/http/pprof" // pprof 프로파일링 도구 추가
+	_ "net/http/pprof"
 	"os"
 	"runtime"
 	"strconv"
@@ -19,7 +18,6 @@ import (
 	"time"
 )
 
-// Event 구조체의 json 태그에 있던 비표준 공백 문자를 수정했습니다.
 type Event struct {
 	EventName        string  `json:"event_name"`
 	Timestamp        string  `json:"timestamp"`
@@ -79,7 +77,6 @@ type Event struct {
 var (
 	successCount uint64
 	failCount    uint64
-	// ✅ 개선: 재사용 가능한 strings.Builder 풀 추가
 	sbPool = sync.Pool{
 		New: func() interface{} {
 			return &strings.Builder{}
@@ -87,28 +84,22 @@ var (
 	}
 )
 
-// ✅ 개선: randomEvent 함수 성능 최적화
 func randomEvent(rng *rand.Rand) Event {
-	// time.Now() 호출을 한 번으로 줄임
 	currentTime := time.Now()
 	nowStr := currentTime.Format("2006-01-02 15:04:05.000")
 
-	// strings.Builder를 사용하여 문자열 조합 성능 향상
 	sb := sbPool.Get().(*strings.Builder)
 	defer sbPool.Put(sb)
 	sb.Reset()
 
-	// UserID
 	sb.WriteString(strconv.Itoa(rng.Intn(1000000)))
 	uid := sb.String()
 	sb.Reset()
 
-	// ClientID
 	fmt.Fprintf(sb, "%08x-%04x-%04x-%04x-%012x", rng.Uint32(), rng.Uint32()&0xffff, rng.Uint32()&0xffff, rng.Uint32()&0xffff, rng.Uint64()&0xffffffffffff)
 	clientID := sb.String()
 	sb.Reset()
 
-	// SessionID
 	sb.WriteString("sess_")
 	sb.WriteString(strconv.FormatInt(currentTime.UnixMilli(), 10))
 	sb.WriteString("_")
@@ -116,7 +107,6 @@ func randomEvent(rng *rand.Rand) Event {
 	sessionID := sb.String()
 	sb.Reset()
 
-	// TargetText
 	sb.WriteString("button ")
 	sb.WriteString(strconv.Itoa(rng.Intn(10)))
 	targetText := sb.String()
@@ -235,10 +225,7 @@ func worker(client *http.Client, endpoint string, requests int, duration time.Du
 }
 
 func main() {
-	// ✅ 개선: pprof 프로파일링 서버 실행 (옵션)
-	// 부하 테스트 중 http://localhost:6060/debug/pprof/ 에 접속하여 성능 분석 가능
 	go func() {
-		// 이 부분은 에러를 출력할 수 있으므로, 실제 운영 환경에서는 로깅 처리를 권장합니다.
 		_ = http.ListenAndServe("localhost:6060", nil)
 	}()
 
@@ -298,7 +285,7 @@ func main() {
 			KeepAlive: 90 * time.Second,
 		}).DialContext,
 		DisableCompression: false,
-		ForceAttemptHTTP2:  false, // HTTP/1.1 강제
+		ForceAttemptHTTP2:  false,
 	}
 	client := &http.Client{
 		Transport: tr,
